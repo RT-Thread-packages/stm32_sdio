@@ -29,7 +29,7 @@
 
 #include <stm32_sdio.h>
 
-#define DBG_ENABLE
+// #define DBG_ENABLE
 #define DBG_SECTION_NAME    "SDIO"
 #define DBG_COLOR
 #define DBG_LEVEL           _dbg_level
@@ -38,7 +38,9 @@
 #define RTHW_SDIO_LOCK(_sdio)   rt_mutex_take(&_sdio->mutex, RT_WAITING_FOREVER)
 #define RTHW_SDIO_UNLOCK(_sdio) rt_mutex_release(&_sdio->mutex);
 
+#ifdef DBG_ENABLE
 static int _dbg_level = 3;
+#endif
 
 struct sdio_pkg
 {
@@ -576,6 +578,7 @@ struct rt_mmcsd_host *sdio_host_create(struct stm32_sdio_des *sdio_des)
     return host;
 }
 
+#ifdef DBG_ENABLE
 void rthw_sdio_log_level_set(int level)
 {
     if ((level >= DBG_LOG) && (level <= DBG_ERROR))
@@ -606,4 +609,5 @@ rt_err_t sdio_log(int argc, char** argv)
 #ifdef RT_USING_FINSH
 #include <finsh.h>
 MSH_CMD_EXPORT(sdio_log, sdio log level 0 - 3);
+#endif
 #endif
