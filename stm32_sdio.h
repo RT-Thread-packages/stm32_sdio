@@ -47,7 +47,7 @@ extern "C" {
 #define SDIO_ALIGN       (32)
 #endif
 
-#ifndef SDIO_MAX_FREQ   
+#ifndef SDIO_MAX_FREQ
 #define SDIO_MAX_FREQ    (24 * 1000 * 1000)
 #endif
 

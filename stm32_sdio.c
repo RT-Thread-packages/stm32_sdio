@@ -29,7 +29,7 @@
 
 #include <stm32_sdio.h>
 
-#define DBG_ENABLE
+// #define DBG_ENABLE
 #define DBG_SECTION_NAME    "SDIO"
 #define DBG_COLOR
 #define DBG_LEVEL           _dbg_level
@@ -38,7 +38,9 @@
 #define RTHW_SDIO_LOCK(_sdio)   rt_mutex_take(&_sdio->mutex, RT_WAITING_FOREVER)
 #define RTHW_SDIO_UNLOCK(_sdio) rt_mutex_release(&_sdio->mutex);
 
+#ifdef DBG_ENABLE
 static int _dbg_level = 3;
+#endif
 
 struct sdio_pkg
 {
@@ -70,22 +72,54 @@ static int get_order(rt_uint32_t data)
 
     switch (data)
     {
-    case 1: order = 0; break;
-    case 2: order = 1; break;
-    case 4: order = 2; break;
-    case 8: order = 3; break;
-    case 16: order = 4; break;
-    case 32: order = 5; break;
-    case 64: order = 6; break;
-    case 128: order = 7; break;
-    case 256: order = 8; break;
-    case 512: order = 9; break;
-    case 1024: order = 10; break;
-    case 2048: order = 11; break;
-    case 4096: order = 12; break;
-    case 8192: order = 13; break;
-    case 16384: order = 14; break;
-    default : order = -1; break;
+    case 1:
+        order = 0;
+        break;
+    case 2:
+        order = 1;
+        break;
+    case 4:
+        order = 2;
+        break;
+    case 8:
+        order = 3;
+        break;
+    case 16:
+        order = 4;
+        break;
+    case 32:
+        order = 5;
+        break;
+    case 64:
+        order = 6;
+        break;
+    case 128:
+        order = 7;
+        break;
+    case 256:
+        order = 8;
+        break;
+    case 512:
+        order = 9;
+        break;
+    case 1024:
+        order = 10;
+        break;
+    case 2048:
+        order = 11;
+        break;
+    case 4096:
+        order = 12;
+        break;
+    case 8192:
+        order = 13;
+        break;
+    case 16384:
+        order = 14;
+        break;
+    default :
+        order = -1;
+        break;
     }
 
     return order;
@@ -98,8 +132,8 @@ static void rthw_sdio_wait_completed(struct rthw_sdio *sdio)
     struct rt_mmcsd_data *data = cmd->data;
     struct stm32_sdio *hw_sdio = sdio->sdio_des.hw_sdio;
 
-    if (rt_event_recv(&sdio->event, 0xffffffff, RT_EVENT_FLAG_OR | RT_EVENT_FLAG_CLEAR, 
-            rt_tick_from_millisecond(5000), &status) != RT_EOK)
+    if (rt_event_recv(&sdio->event, 0xffffffff, RT_EVENT_FLAG_OR | RT_EVENT_FLAG_CLEAR,
+                      rt_tick_from_millisecond(5000), &status) != RT_EOK)
     {
         dbg_log(DBG_ERROR, "wait completed timeout!!\n");
         cmd->err = -RT_ETIMEOUT;
@@ -131,7 +165,7 @@ static void rthw_sdio_wait_completed(struct rthw_sdio *sdio)
         {
             cmd->err = -RT_ETIMEOUT;
         }
-        
+
         if (status & HW_SDIO_IT_DCRCFAIL)
         {
             data->err = -RT_ERROR;
@@ -149,20 +183,20 @@ static void rthw_sdio_wait_completed(struct rthw_sdio *sdio)
         else
         {
             dbg_log(DBG_ERROR, "err:0x%08x, %s%s%s%s%s%s%s cmd:%d arg:0x%08x rw:%c len:%d blksize:%d\n",
-               status,
-               status & HW_SDIO_IT_CCRCFAIL  ? "CCRCFAIL "    : "",
-               status & HW_SDIO_IT_DCRCFAIL  ? "DCRCFAIL "    : "",
-               status & HW_SDIO_IT_CTIMEOUT  ? "CTIMEOUT "    : "",
-               status & HW_SDIO_IT_DTIMEOUT  ? "DTIMEOUT "    : "",
-               status & HW_SDIO_IT_TXUNDERR  ? "TXUNDERR "    : "",
-               status & HW_SDIO_IT_RXOVERR   ? "RXOVERR "     : "",
-               status == 0                   ? "NULL"        : "",
-               cmd->cmd_code,
-               cmd->arg,
-               data ? (data->flags & DATA_DIR_WRITE ?  'w' : 'r') : '-',
-               data ? data->blks * data->blksize : 0,
-               data ? data->blksize : 0
-              );
+                    status,
+                    status & HW_SDIO_IT_CCRCFAIL  ? "CCRCFAIL "    : "",
+                    status & HW_SDIO_IT_DCRCFAIL  ? "DCRCFAIL "    : "",
+                    status & HW_SDIO_IT_CTIMEOUT  ? "CTIMEOUT "    : "",
+                    status & HW_SDIO_IT_DTIMEOUT  ? "DTIMEOUT "    : "",
+                    status & HW_SDIO_IT_TXUNDERR  ? "TXUNDERR "    : "",
+                    status & HW_SDIO_IT_RXOVERR   ? "RXOVERR "     : "",
+                    status == 0                   ? "NULL"        : "",
+                    cmd->cmd_code,
+                    cmd->arg,
+                    data ? (data->flags & DATA_DIR_WRITE ?  'w' : 'r') : '-',
+                    data ? data->blks * data->blksize : 0,
+                    data ? data->blksize : 0
+                   );
         }
     }
     else
@@ -175,7 +209,7 @@ static void rthw_sdio_wait_completed(struct rthw_sdio *sdio)
 #if 0
 static void rthw_sdio_transfer_by_cpu(struct rthw_sdio *sdio, struct sdio_pkg *pkg)
 {
-    
+
 }
 #endif
 
@@ -213,21 +247,21 @@ static void rthw_sdio_send_command(struct rthw_sdio *sdio, struct sdio_pkg *pkg)
     //save pkg
     sdio->pkg = pkg;
 
-    dbg_log(DBG_LOG, "CMD:%d ARG:0x%08x RES:%s%s%s%s%s%s%s%s%s rw:%c len:%d blksize:%d\n", 
-             cmd->cmd_code, 
-             cmd->arg,
-             resp_type(cmd) == RESP_NONE ? "NONE"  : "",
-             resp_type(cmd) == RESP_R1  ? "R1"  : "",
-             resp_type(cmd) == RESP_R1B ? "R1B"  : "",
-             resp_type(cmd) == RESP_R2  ? "R2"  : "",
-             resp_type(cmd) == RESP_R3  ? "R3"  : "",
-             resp_type(cmd) == RESP_R4  ? "R4"  : "",
-             resp_type(cmd) == RESP_R5  ? "R5"  : "",
-             resp_type(cmd) == RESP_R6  ? "R6"  : "",
-             resp_type(cmd) == RESP_R7  ? "R7"  : "",
-             data ? (data->flags & DATA_DIR_WRITE ?  'w' : 'r') : '-',
-             data ? data->blks * data->blksize : 0,
-             data ? data->blksize : 0
+    dbg_log(DBG_LOG, "CMD:%d ARG:0x%08x RES:%s%s%s%s%s%s%s%s%s rw:%c len:%d blksize:%d\n",
+            cmd->cmd_code,
+            cmd->arg,
+            resp_type(cmd) == RESP_NONE ? "NONE"  : "",
+            resp_type(cmd) == RESP_R1  ? "R1"  : "",
+            resp_type(cmd) == RESP_R1B ? "R1B"  : "",
+            resp_type(cmd) == RESP_R2  ? "R2"  : "",
+            resp_type(cmd) == RESP_R3  ? "R3"  : "",
+            resp_type(cmd) == RESP_R4  ? "R4"  : "",
+            resp_type(cmd) == RESP_R5  ? "R5"  : "",
+            resp_type(cmd) == RESP_R6  ? "R6"  : "",
+            resp_type(cmd) == RESP_R7  ? "R7"  : "",
+            data ? (data->flags & DATA_DIR_WRITE ?  'w' : 'r') : '-',
+            data ? data->blks * data->blksize : 0,
+            data ? data->blksize : 0
            );
 
     //config cmd reg
@@ -270,7 +304,7 @@ static void rthw_sdio_send_command(struct rthw_sdio *sdio, struct sdio_pkg *pkg)
 
     //open irq
     hw_sdio->mask |= HW_SDIO_IT_CMDSENT | HW_SDIO_IT_CMDREND | HW_SDIO_ERRORS;
-    if(data != RT_NULL)
+    if (data != RT_NULL)
     {
         hw_sdio->mask |= HW_SDIO_IT_DATAEND;
     }
@@ -351,17 +385,17 @@ static void rthw_sdio_iocfg(struct rt_mmcsd_host *host, struct rt_mmcsd_io_cfg *
     struct stm32_sdio *hw_sdio = sdio->sdio_des.hw_sdio;
 
     if (clk > host->freq_max) clk = host->freq_max;
-    
+
     dbg_log(DBG_LOG, "clk:%d width:%s%s%s power:%s%s%s\n",
-             clk,
-             io_cfg->bus_width == MMCSD_BUS_WIDTH_8 ? "8" : "",
-             io_cfg->bus_width == MMCSD_BUS_WIDTH_4 ? "4" : "",
-             io_cfg->bus_width == MMCSD_BUS_WIDTH_1 ? "1" : "",
-             io_cfg->power_mode == MMCSD_POWER_OFF ? "OFF" : "",
-             io_cfg->power_mode == MMCSD_POWER_UP ? "UP" : "",
-             io_cfg->power_mode == MMCSD_POWER_ON ? "ON" : ""
+            clk,
+            io_cfg->bus_width == MMCSD_BUS_WIDTH_8 ? "8" : "",
+            io_cfg->bus_width == MMCSD_BUS_WIDTH_4 ? "4" : "",
+            io_cfg->bus_width == MMCSD_BUS_WIDTH_1 ? "1" : "",
+            io_cfg->power_mode == MMCSD_POWER_OFF ? "OFF" : "",
+            io_cfg->power_mode == MMCSD_POWER_UP ? "UP" : "",
+            io_cfg->power_mode == MMCSD_POWER_ON ? "ON" : ""
            );
-    
+
     RTHW_SDIO_LOCK(sdio);
 
     div = sdio->sdio_des.clk_get(sdio->sdio_des.hw_sdio) / clk;
@@ -413,7 +447,7 @@ static void rthw_sdio_iocfg(struct rt_mmcsd_host *host, struct rt_mmcsd_io_cfg *
         rt_kprintf("unknown power_mode %d\n", io_cfg->power_mode);
         break;
     }
-    
+
     RTHW_SDIO_UNLOCK(sdio);
 }
 
@@ -514,15 +548,15 @@ struct rt_mmcsd_host *sdio_host_create(struct stm32_sdio_des *sdio_des)
     struct rt_mmcsd_host *host;
     struct rthw_sdio *sdio = RT_NULL;
 
-    if ((sdio_des == RT_NULL) || 
-        (sdio_des->txconfig == RT_NULL) ||
-        (sdio_des->rxconfig == RT_NULL))
+    if ((sdio_des == RT_NULL) ||
+            (sdio_des->txconfig == RT_NULL) ||
+            (sdio_des->rxconfig == RT_NULL))
     {
-        rt_kprintf("L:%d F:%s %s %s %s\n", 
-         (sdio_des == RT_NULL ? "sdio_des is NULL" : ""),
-         (sdio_des ? (sdio_des->txconfig ? "txconfig is NULL" : "") : ""),
-         (sdio_des ? (sdio_des->rxconfig ? "rxconfig is NULL" : "") : "")
-        );
+        rt_kprintf("L:%d F:%s %s %s %s\n",
+                   (sdio_des == RT_NULL ? "sdio_des is NULL" : ""),
+                   (sdio_des ? (sdio_des->txconfig ? "txconfig is NULL" : "") : ""),
+                   (sdio_des ? (sdio_des->rxconfig ? "rxconfig is NULL" : "") : "")
+                  );
         return RT_NULL;
     }
 
@@ -551,7 +585,7 @@ struct rt_mmcsd_host *sdio_host_create(struct stm32_sdio_des *sdio_des)
 
     // set host defautl attributes
     host->ops = &ops;
-    host->freq_min = 400*1000;
+    host->freq_min = 400 * 1000;
     host->freq_max = SDIO_MAX_FREQ;
     host->valid_ocr = VDD_32_33 | VDD_33_34;
 #ifndef SDIO_USING_1_BIT
@@ -576,6 +610,7 @@ struct rt_mmcsd_host *sdio_host_create(struct stm32_sdio_des *sdio_des)
     return host;
 }
 
+#ifdef DBG_ENABLE
 void rthw_sdio_log_level_set(int level)
 {
     if ((level >= DBG_LOG) && (level <= DBG_ERROR))
@@ -588,7 +623,7 @@ int rthw_sdio_log_level_Get(void)
 }
 
 #include <stdlib.h>
-rt_err_t sdio_log(int argc, char** argv)
+rt_err_t sdio_log(int argc, char **argv)
 {
     int _level;
 
@@ -606,4 +641,5 @@ rt_err_t sdio_log(int argc, char** argv)
 #ifdef RT_USING_FINSH
 #include <finsh.h>
 MSH_CMD_EXPORT(sdio_log, sdio log level 0 - 3);
+#endif
 #endif
