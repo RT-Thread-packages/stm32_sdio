@@ -29,17 +29,19 @@
 
 #include <stm32_sdio.h>
 
-// #define DBG_ENABLE
+#define DBG_ENABLE
 #define DBG_SECTION_NAME    "SDIO"
 #define DBG_COLOR
 #define DBG_LEVEL           _dbg_level
 #include <rtdbg.h>
 
+#define SDIO_TX_RX_COMPLETE_TIMEOUT_LOOPS    (100000)
+
 #define RTHW_SDIO_LOCK(_sdio)   rt_mutex_take(&_sdio->mutex, RT_WAITING_FOREVER)
 #define RTHW_SDIO_UNLOCK(_sdio) rt_mutex_release(&_sdio->mutex);
 
 #ifdef DBG_ENABLE
-static int _dbg_level = 3;
+static int _dbg_level = DBG_ERROR;
 #endif
 
 struct sdio_pkg
@@ -118,7 +120,7 @@ static int get_order(rt_uint32_t data)
         order = 14;
         break;
     default :
-        order = -1;
+        order = 0;
         break;
     }
 
@@ -131,6 +133,7 @@ static void rthw_sdio_wait_completed(struct rthw_sdio *sdio)
     struct rt_mmcsd_cmd *cmd = sdio->pkg->cmd;
     struct rt_mmcsd_data *data = cmd->data;
     struct stm32_sdio *hw_sdio = sdio->sdio_des.hw_sdio;
+    int err_level = DBG_ERROR;
 
     if (rt_event_recv(&sdio->event, 0xffffffff, RT_EVENT_FLAG_OR | RT_EVENT_FLAG_CLEAR,
                       rt_tick_from_millisecond(5000), &status) != RT_EOK)
@@ -182,7 +185,11 @@ static void rthw_sdio_wait_completed(struct rthw_sdio *sdio)
         }
         else
         {
-            dbg_log(DBG_ERROR, "err:0x%08x, %s%s%s%s%s%s%s cmd:%d arg:0x%08x rw:%c len:%d blksize:%d\n",
+            if ((cmd->cmd_code == 5) || (cmd->cmd_code == 8))
+            {
+                err_level = DBG_WARNING;
+            }
+            dbg_log(err_level, "err:0x%08x, %s%s%s%s%s%s%s cmd:%d arg:0x%08x rw:%c len:%d blksize:%d\n",
                     status,
                     status & HW_SDIO_IT_CCRCFAIL  ? "CCRCFAIL "    : "",
                     status & HW_SDIO_IT_DCRCFAIL  ? "DCRCFAIL "    : "",
@@ -285,14 +292,7 @@ static void rthw_sdio_send_command(struct rthw_sdio *sdio, struct sdio_pkg *pkg)
         hw_sdio->dlen = size;
         order = get_order(data->blksize);
         dir = (data->flags & DATA_DIR_READ) ? HW_SDIO_TO_HOST : 0;
-        if (order >= 0)
-        {
-            hw_sdio->dctrl = HW_SDIO_IO_ENABLE | (order << 4) | dir;
-        }
-        else
-        {
-            hw_sdio->dctrl = HW_SDIO_IO_ENABLE | HW_SDIO_STREAM_ENABLE | dir;
-        }
+        hw_sdio->dctrl = HW_SDIO_IO_ENABLE | (order << 4) | dir;
     }
 
     //transfer config
@@ -315,6 +315,22 @@ static void rthw_sdio_send_command(struct rthw_sdio *sdio, struct sdio_pkg *pkg)
 
     //wait completed
     rthw_sdio_wait_completed(sdio);
+
+    //Waiting for data to be sent to completion
+    if (data != RT_NULL)
+    {
+        volatile rt_uint32_t count = SDIO_TX_RX_COMPLETE_TIMEOUT_LOOPS;
+
+        while (count && (hw_sdio->sta & (HW_SDIO_IT_TXACT | HW_SDIO_IT_RXACT)))
+        {
+            count--;
+        }
+
+        if ((count == 0) || (hw_sdio->sta & HW_SDIO_ERRORS))
+        {
+            cmd->err = -RT_ERROR;
+        }
+    }
 
     //close irq, keep sdio irq
     hw_sdio->mask = hw_sdio->mask & HW_SDIO_IT_SDIOIT ? HW_SDIO_IT_SDIOIT : 0x00;
@@ -379,12 +395,25 @@ static void rthw_sdio_request(struct rt_mmcsd_host *host, struct rt_mmcsd_req *r
  */
 static void rthw_sdio_iocfg(struct rt_mmcsd_host *host, struct rt_mmcsd_io_cfg *io_cfg)
 {
-    rt_uint32_t clkcr, div;
+    rt_uint32_t clkcr, div, clk_src;
     rt_uint32_t clk = io_cfg->clock;
     struct rthw_sdio *sdio = host->private_data;
     struct stm32_sdio *hw_sdio = sdio->sdio_des.hw_sdio;
 
+    clk_src = sdio->sdio_des.clk_get(sdio->sdio_des.hw_sdio);
+    if (clk_src < 400 * 1000)
+    {
+        dbg_log(DBG_ERROR, "The clock rate is too low! rata:%d", clk_src);
+        return;
+    }
+
     if (clk > host->freq_max) clk = host->freq_max;
+
+    if (clk > clk_src)
+    {
+        dbg_log(DBG_WARNING, "Setting rate is greater than clock source rate.");
+        clk = clk_src;
+    }
 
     dbg_log(DBG_LOG, "clk:%d width:%s%s%s power:%s%s%s\n",
             clk,
@@ -398,7 +427,7 @@ static void rthw_sdio_iocfg(struct rt_mmcsd_host *host, struct rt_mmcsd_io_cfg *
 
     RTHW_SDIO_LOCK(sdio);
 
-    div = sdio->sdio_des.clk_get(sdio->sdio_des.hw_sdio) / clk;
+    div = clk_src / clk;
     if ((clk == 0) || (div == 0))
     {
         clkcr = 0;
@@ -430,7 +459,7 @@ static void rthw_sdio_iocfg(struct rt_mmcsd_host *host, struct rt_mmcsd_io_cfg *
         clkcr |= HW_SDIO_BUSWIDE_1B;
     }
 
-    hw_sdio->clkcr = HW_SDIO_FLOW_ENABLE | clkcr;
+    hw_sdio->clkcr = clkcr;
 
     switch (io_cfg->power_mode)
     {
@@ -505,14 +534,14 @@ void rthw_sdio_irq_process(struct rt_mmcsd_host *host)
             }
         }
 
-        if (intstatus & HW_SDIO_IT_DBCKEND)
-        {
-            hw_sdio->icr = HW_SDIO_IT_DBCKEND;
-        }
         if (intstatus & HW_SDIO_IT_CMDSENT)
         {
             hw_sdio->icr = HW_SDIO_IT_CMDSENT;
-            complete = 1;
+
+            if (resp_type(sdio->pkg->cmd) == RESP_NONE)
+            {
+                complete = 1;
+            }
         }
 
         if (intstatus & HW_SDIO_IT_DATAEND)
@@ -613,8 +642,7 @@ struct rt_mmcsd_host *sdio_host_create(struct stm32_sdio_des *sdio_des)
 #ifdef DBG_ENABLE
 void rthw_sdio_log_level_set(int level)
 {
-    if ((level >= DBG_LOG) && (level <= DBG_ERROR))
-        _dbg_level = level;
+    _dbg_level = level;
 }
 
 int rthw_sdio_log_level_Get(void)
@@ -625,14 +653,41 @@ int rthw_sdio_log_level_Get(void)
 #include <stdlib.h>
 rt_err_t sdio_log(int argc, char **argv)
 {
-    int _level;
+    int _level = -1;
 
     if (argc != 2)
     {
-        rt_kprintf("user:sdio_log 3\n");
+        rt_kprintf("user:sdio_log log\n");
         return -RT_ERROR;
     }
-    _level = atoi(argv[1]);
+
+    if ((strcmp(argv[1], "log") == 0) ||
+            (strcmp(argv[1], "LOG") == 0))
+    {
+        _level = DBG_LOG;
+    }
+    else if ((strcmp(argv[1], "info") == 0) ||
+             (strcmp(argv[1], "INFO") == 0))
+    {
+        _level = DBG_INFO;
+    }
+    else if ((strcmp(argv[1], "warning") == 0) ||
+             (strcmp(argv[1], "WARNING") == 0))
+    {
+        _level = DBG_INFO;
+    }
+    else if ((strcmp(argv[1], "error") == 0) ||
+             (strcmp(argv[1], "ERROR") == 0))
+    {
+        _level = DBG_INFO;
+    }
+
+    if (_level < 0)
+    {
+        rt_kprintf("user:sdio_log LOG\n");
+        return -RT_ERROR;
+    }
+
     rthw_sdio_log_level_set(_level);
     rt_kprintf("sdio_log level:%d\n", rthw_sdio_log_level_Get());
     return RT_EOK;
@@ -640,6 +695,6 @@ rt_err_t sdio_log(int argc, char **argv)
 
 #ifdef RT_USING_FINSH
 #include <finsh.h>
-MSH_CMD_EXPORT(sdio_log, sdio log level 0 - 3);
+MSH_CMD_EXPORT(sdio_log, sdio log level log / info / warning / error.);
 #endif
 #endif
