@@ -126,7 +126,7 @@ extern "C" {
 #define HW_SDIO_TO_HOST                        (0x01U << 1)
 #define HW_SDIO_DPSM_ENABLE                    (0x01U << 0)
 
-#define HW_SDIO_DATATIMEOUT                    (0x00100000U)
+#define HW_SDIO_DATATIMEOUT                    (0xF0000000U)
 
 struct stm32_sdio
 {
