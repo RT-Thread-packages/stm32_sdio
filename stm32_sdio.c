@@ -222,15 +222,32 @@ static void rthw_sdio_transfer_by_cpu(struct rthw_sdio *sdio, struct sdio_pkg *p
 
 static void rthw_sdio_transfer_by_dma(struct rthw_sdio *sdio, struct sdio_pkg *pkg)
 {
-    struct rt_mmcsd_data *data = pkg->cmd->data;
-    int size = data->blks * data->blksize;
-    void *buff = pkg->buff;
-    struct stm32_sdio *hw_sdio = sdio->sdio_des.hw_sdio;
+    struct rt_mmcsd_data *data;
+    int size;
+    void *buff;
+    struct stm32_sdio *hw_sdio;
 
-    if ((data == RT_NULL) || (buff == RT_NULL))
+    if ((RT_NULL == pkg) || (RT_NULL == sdio))
     {
+        LOG_E("rthw_sdio_transfer_by_dma invalid args");
         return;
     }
+
+    data = pkg->cmd->data;
+    if(RT_NULL == data)
+    {
+        LOG_E("rthw_sdio_transfer_by_dma invalid args");
+        return;
+    }
+    
+    buff = pkg->buff;
+    if(RT_NULL == buff)
+    {
+        LOG_E("rthw_sdio_transfer_by_dma invalid args");
+        return;
+    }
+    hw_sdio = sdio->sdio_des.hw_sdio;
+    size = data->blks * data->blksize;
 
     if (data->flags & DATA_DIR_WRITE)
     {
