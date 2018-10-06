@@ -313,11 +313,14 @@ static void rthw_sdio_send_command(struct rthw_sdio *sdio, struct sdio_pkg *pkg)
     }
 
     //transfer config
+    if (data != RT_NULL)
+    {
 #if 1
     rthw_sdio_transfer_by_dma(sdio, pkg);
 #else
     rthw_sdio_transfer_by_cpu(sdio, pkg);
 #endif
+    }
 
     //open irq
     hw_sdio->mask |= HW_SDIO_IT_CMDSENT | HW_SDIO_IT_CMDREND | HW_SDIO_ERRORS;
