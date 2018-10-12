@@ -543,13 +543,16 @@ void rthw_sdio_irq_process(struct rt_mmcsd_host *host)
 
             if (sdio->pkg != RT_NULL)
             {
-                if (!sdio->pkg->cmd->data)
+                if(sdio->pkg->cmd != RT_NULL)
                 {
-                    complete = 1;
-                }
-                else if ((sdio->pkg->cmd->data->flags & DATA_DIR_WRITE))
-                {
-                    hw_sdio->dctrl |= HW_SDIO_DPSM_ENABLE;
+                    if (!sdio->pkg->cmd->data)
+                    {
+                        complete = 1;
+                    }
+                    else if ((sdio->pkg->cmd->data->flags & DATA_DIR_WRITE))
+                    {
+                        hw_sdio->dctrl |= HW_SDIO_DPSM_ENABLE;
+                    }
                 }
             }
         }
@@ -558,7 +561,7 @@ void rthw_sdio_irq_process(struct rt_mmcsd_host *host)
         {
             hw_sdio->icr = HW_SDIO_IT_CMDSENT;
 
-            if (resp_type(sdio->pkg->cmd) == RESP_NONE)
+            if ((sdio->pkg != RT_NULL) && (sdio->pkg->cmd != RT_NULL) && (resp_type(sdio->pkg->cmd) == RESP_NONE))
             {
                 complete = 1;
             }
