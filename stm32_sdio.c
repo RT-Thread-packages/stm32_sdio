@@ -558,7 +558,7 @@ void rthw_sdio_irq_process(struct rt_mmcsd_host *host)
         {
             hw_sdio->icr = HW_SDIO_IT_CMDSENT;
 
-            if (resp_type(sdio->pkg->cmd) == RESP_NONE)
+            if ((sdio->pkg != RT_NULL) && (resp_type(sdio->pkg->cmd) == RESP_NONE))
             {
                 complete = 1;
             }
