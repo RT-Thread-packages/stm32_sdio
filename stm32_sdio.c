@@ -366,7 +366,9 @@ static void rthw_sdio_request(struct rt_mmcsd_host *host, struct rt_mmcsd_req *r
     struct rt_mmcsd_data *data;
 
     RTHW_SDIO_LOCK(sdio);
-
+#ifdef RT_USING_PM
+    rt_pm_request(PM_RUN_MODE_NORMAL);
+#endif
     if (req->cmd != RT_NULL)
     {
         memset(&pkg, 0, sizeof(pkg));
@@ -404,7 +406,9 @@ static void rthw_sdio_request(struct rt_mmcsd_host *host, struct rt_mmcsd_req *r
         pkg.cmd = req->stop;
         rthw_sdio_send_command(sdio, &pkg);
     }
-
+#ifdef RT_USING_PM
+    rt_pm_release(PM_RUN_MODE_NORMAL);
+#endif
     RTHW_SDIO_UNLOCK(sdio);
 
     mmcsd_req_complete(sdio->host);
@@ -479,7 +483,7 @@ static void rthw_sdio_iocfg(struct rt_mmcsd_host *host, struct rt_mmcsd_io_cfg *
         clkcr |= HW_SDIO_BUSWIDE_1B;
     }
 
-    hw_sdio->clkcr = clkcr;
+    hw_sdio->clkcr = clkcr | HW_SDIO_IDLE_ENABLE;
 
     switch (io_cfg->power_mode)
     {
