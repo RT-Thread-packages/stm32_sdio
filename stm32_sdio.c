@@ -29,9 +29,7 @@
 
 #include <stm32_sdio.h>
 
-#define DBG_ENABLE
 #define DBG_SECTION_NAME    "SDIO"
-#define DBG_COLOR
 #define DBG_LEVEL           _dbg_level
 #include <rtdbg.h>
 
@@ -133,7 +131,6 @@ static void rthw_sdio_wait_completed(struct rthw_sdio *sdio)
     struct rt_mmcsd_cmd *cmd = sdio->pkg->cmd;
     struct rt_mmcsd_data *data = cmd->data;
     struct stm32_sdio *hw_sdio = sdio->sdio_des.hw_sdio;
-    int err_level = DBG_ERROR;
 
     if (rt_event_recv(&sdio->event, 0xffffffff, RT_EVENT_FLAG_OR | RT_EVENT_FLAG_CLEAR,
                       rt_tick_from_millisecond(5000), &status) != RT_EOK)
@@ -185,6 +182,8 @@ static void rthw_sdio_wait_completed(struct rthw_sdio *sdio)
         }
         else
         {
+            int err_level = DBG_ERROR;
+
             if ((cmd->cmd_code == 5) || (cmd->cmd_code == 8))
             {
                 err_level = DBG_WARNING;
