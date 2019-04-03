@@ -30,17 +30,13 @@
 #include <stm32_sdio.h>
 
 #define DBG_SECTION_NAME    "SDIO"
-#define DBG_LEVEL           _dbg_level
+#define DBG_LEVEL           DBG_ERROR
 #include <rtdbg.h>
 
 #define SDIO_TX_RX_COMPLETE_TIMEOUT_LOOPS    (100000)
 
 #define RTHW_SDIO_LOCK(_sdio)   rt_mutex_take(&_sdio->mutex, RT_WAITING_FOREVER)
 #define RTHW_SDIO_UNLOCK(_sdio) rt_mutex_release(&_sdio->mutex);
-
-#ifdef DBG_ENABLE
-static int _dbg_level = DBG_ERROR;
-#endif
 
 struct sdio_pkg
 {
@@ -135,7 +131,7 @@ static void rthw_sdio_wait_completed(struct rthw_sdio *sdio)
     if (rt_event_recv(&sdio->event, 0xffffffff, RT_EVENT_FLAG_OR | RT_EVENT_FLAG_CLEAR,
                       rt_tick_from_millisecond(5000), &status) != RT_EOK)
     {
-        dbg_log(DBG_ERROR, "wait completed timeout!!\n");
+        LOG_E("wait completed timeout!!");
         cmd->err = -RT_ETIMEOUT;
         return;
     }
@@ -178,17 +174,28 @@ static void rthw_sdio_wait_completed(struct rthw_sdio *sdio)
 
         if (cmd->err == RT_EOK)
         {
-            dbg_log(DBG_LOG, "sta:0x%08X [%08X %08X %08X %08X]\n", status, cmd->resp[0], cmd->resp[1], cmd->resp[2], cmd->resp[3]);
+            LOG_D("sta:0x%08X [%08X %08X %08X %08X]", status, cmd->resp[0], cmd->resp[1], cmd->resp[2], cmd->resp[3]);
         }
         else
         {
-            int err_level = DBG_ERROR;
-
             if ((cmd->cmd_code == 5) || (cmd->cmd_code == 8))
             {
-                err_level = DBG_WARNING;
+                LOG_W("warr:0x%08x, %s%s%s%s%s%s%s cmd:%d arg:0x%08x",
+                    status,
+                    status & HW_SDIO_IT_CCRCFAIL  ? "CCRCFAIL "    : "",
+                    status & HW_SDIO_IT_DCRCFAIL  ? "DCRCFAIL "    : "",
+                    status & HW_SDIO_IT_CTIMEOUT  ? "CTIMEOUT "    : "",
+                    status & HW_SDIO_IT_DTIMEOUT  ? "DTIMEOUT "    : "",
+                    status & HW_SDIO_IT_TXUNDERR  ? "TXUNDERR "    : "",
+                    status & HW_SDIO_IT_RXOVERR   ? "RXOVERR "     : "",
+                    status == 0                   ? "NULL"        : "",
+                    cmd->cmd_code,
+                    cmd->arg,
+                   );
             }
-            dbg_log(err_level, "err:0x%08x, %s%s%s%s%s%s%s cmd:%d arg:0x%08x rw:%c len:%d blksize:%d\n",
+            else
+            {
+                LOG_E("err:0x%08x, %s%s%s%s%s%s%s cmd:%d arg:0x%08x rw:%c len:%d blksize:%d",
                     status,
                     status & HW_SDIO_IT_CCRCFAIL  ? "CCRCFAIL "    : "",
                     status & HW_SDIO_IT_DCRCFAIL  ? "DCRCFAIL "    : "",
@@ -203,12 +210,13 @@ static void rthw_sdio_wait_completed(struct rthw_sdio *sdio)
                     data ? data->blks * data->blksize : 0,
                     data ? data->blksize : 0
                    );
+            }
         }
     }
     else
     {
         cmd->err = RT_EOK;
-        dbg_log(DBG_LOG, "sta:0x%08X [%08X %08X %08X %08X]\n", status, cmd->resp[0], cmd->resp[1], cmd->resp[2], cmd->resp[3]);
+        LOG_D("sta:0x%08X [%08X %08X %08X %08X]", status, cmd->resp[0], cmd->resp[1], cmd->resp[2], cmd->resp[3]);
     }
 }
 
@@ -270,7 +278,7 @@ static void rthw_sdio_send_command(struct rthw_sdio *sdio, struct sdio_pkg *pkg)
     //save pkg
     sdio->pkg = pkg;
 
-    dbg_log(DBG_LOG, "CMD:%d ARG:0x%08x RES:%s%s%s%s%s%s%s%s%s rw:%c len:%d blksize:%d\n",
+    LOG_D("CMD:%d ARG:0x%08x RES:%s%s%s%s%s%s%s%s%s rw:%c len:%d blksize:%d",
             cmd->cmd_code,
             cmd->arg,
             resp_type(cmd) == RESP_NONE ? "NONE"  : "",
@@ -426,7 +434,7 @@ static void rthw_sdio_iocfg(struct rt_mmcsd_host *host, struct rt_mmcsd_io_cfg *
     clk_src = sdio->sdio_des.clk_get(sdio->sdio_des.hw_sdio);
     if (clk_src < 400 * 1000)
     {
-        dbg_log(DBG_ERROR, "The clock rate is too low! rata:%d", clk_src);
+        LOG_E("The clock rate is too low! rata:%d", clk_src);
         return;
     }
 
@@ -434,11 +442,11 @@ static void rthw_sdio_iocfg(struct rt_mmcsd_host *host, struct rt_mmcsd_io_cfg *
 
     if (clk > clk_src)
     {
-        dbg_log(DBG_WARNING, "Setting rate is greater than clock source rate.");
+        LOG_W("Setting rate is greater than clock source rate.");
         clk = clk_src;
     }
 
-    dbg_log(DBG_LOG, "clk:%d width:%s%s%s power:%s%s%s\n",
+    LOG_D("clk:%d width:%s%s%s power:%s%s%s",
             clk,
             io_cfg->bus_width == MMCSD_BUS_WIDTH_8 ? "8" : "",
             io_cfg->bus_width == MMCSD_BUS_WIDTH_4 ? "4" : "",
@@ -510,12 +518,12 @@ void rthw_sdio_irq_update(struct rt_mmcsd_host *host, rt_int32_t enable)
 
     if (enable)
     {
-        dbg_log(DBG_LOG, "enable sdio irq\n");
+        LOG_D("enable sdio irq");
         hw_sdio->mask |= HW_SDIO_IT_SDIOIT;
     }
     else
     {
-        dbg_log(DBG_LOG, "disable sdio irq\n");
+        LOG_D("disable sdio irq");
         hw_sdio->mask &= ~HW_SDIO_IT_SDIOIT;
     }
 }
@@ -661,63 +669,3 @@ struct rt_mmcsd_host *sdio_host_create(struct stm32_sdio_des *sdio_des)
 
     return host;
 }
-
-#ifdef DBG_ENABLE
-void rthw_sdio_log_level_set(int level)
-{
-    _dbg_level = level;
-}
-
-int rthw_sdio_log_level_Get(void)
-{
-    return _dbg_level;
-}
-
-#include <stdlib.h>
-rt_err_t sdio_log(int argc, char **argv)
-{
-    int _level = -1;
-
-    if (argc != 2)
-    {
-        rt_kprintf("user:sdio_log log\n");
-        return -RT_ERROR;
-    }
-
-    if ((strcmp(argv[1], "log") == 0) ||
-            (strcmp(argv[1], "LOG") == 0))
-    {
-        _level = DBG_LOG;
-    }
-    else if ((strcmp(argv[1], "info") == 0) ||
-             (strcmp(argv[1], "INFO") == 0))
-    {
-        _level = DBG_INFO;
-    }
-    else if ((strcmp(argv[1], "warning") == 0) ||
-             (strcmp(argv[1], "WARNING") == 0))
-    {
-        _level = DBG_INFO;
-    }
-    else if ((strcmp(argv[1], "error") == 0) ||
-             (strcmp(argv[1], "ERROR") == 0))
-    {
-        _level = DBG_INFO;
-    }
-
-    if (_level < 0)
-    {
-        rt_kprintf("user:sdio_log LOG\n");
-        return -RT_ERROR;
-    }
-
-    rthw_sdio_log_level_set(_level);
-    rt_kprintf("sdio_log level:%d\n", rthw_sdio_log_level_Get());
-    return RT_EOK;
-}
-
-#ifdef RT_USING_FINSH
-#include <finsh.h>
-MSH_CMD_EXPORT(sdio_log, sdio log level log / info / warning / error.);
-#endif
-#endif
