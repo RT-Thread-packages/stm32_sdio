@@ -374,7 +374,7 @@ static void rthw_sdio_request(struct rt_mmcsd_host *host, struct rt_mmcsd_req *r
 
     RTHW_SDIO_LOCK(sdio);
 #ifdef RT_USING_PM
-    rt_pm_request(PM_RUN_MODE_NORMAL);
+    rt_pm_request(PM_SLEEP_MODE_NONE);
 #endif
     if (req->cmd != RT_NULL)
     {
@@ -414,7 +414,7 @@ static void rthw_sdio_request(struct rt_mmcsd_host *host, struct rt_mmcsd_req *r
         rthw_sdio_send_command(sdio, &pkg);
     }
 #ifdef RT_USING_PM
-    rt_pm_release(PM_RUN_MODE_NORMAL);
+    rt_pm_release(PM_SLEEP_MODE_NONE);
 #endif
     RTHW_SDIO_UNLOCK(sdio);
 
