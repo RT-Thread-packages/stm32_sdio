@@ -54,7 +54,11 @@ struct rthw_sdio
     struct sdio_pkg *pkg;
 };
 
+#if (RTTHREAD_VERSION >= RT_VERSION_CHECK(5, 0, 1))
+rt_align(SDIO_ALIGN)
+#else
 ALIGN(SDIO_ALIGN)
+#endif
 static rt_uint8_t cache_buf[SDIO_BUFF_SIZE];
 
 static rt_uint32_t stm32_sdio_clk_get(struct stm32_sdio *hw_sdio)
